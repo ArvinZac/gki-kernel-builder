@@ -1,4 +1,4 @@
-name: Build GKI Kernel 5.10 with KSU-Next and SuSFS
+name: Build GKI Kernel 5.10 with KernelSU and SuSFS
 
 on:
   workflow_dispatch:
@@ -23,6 +23,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout this repo (for patch_kernel.sh)
@@ -74,7 +75,7 @@ jobs:
             git clone --depth=1 -b ${{ github.event.inputs.kernel_branch }} ${{ github.event.inputs.kernel_repo }} common
           fi
 
-      - name: Setup KernelSU-Next and SuSFS
+      - name: Setup KernelSU and SuSFS
         run: |
           chmod +x _tool/patch_kernel.sh
           ./_tool/patch_kernel.sh
@@ -105,11 +106,11 @@ jobs:
           
           # Create flashable zip package
           cd anykernel
-          zip -r ../AnyKernel3-GKI-5.10-KSU-Next-SuSFS.zip *
+          zip -r ../AnyKernel3-GKI-5.10-KSU-SuSFS.zip *
           cd ..
 
       - name: Upload AnyKernel3 Package
         uses: actions/upload-artifact@v4
         with:
-          name: AnyKernel3-GKI-5.10-KSU-Next-SuSFS
-          path: AnyKernel3-GKI-5.10-KSU-Next-SuSFS.zip
+          name: AnyKernel3-GKI-5.10-KSU-SuSFS
+          path: AnyKernel3-GKI-5.10-KSU-SuSFS.zip
