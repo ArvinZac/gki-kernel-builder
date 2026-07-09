@@ -54,8 +54,12 @@ jobs:
 
       - name: Sync repo sources
         run: |
-          # Sync only required projects to build aarch64
-          repo sync -c -j$(nproc) --no-clone-bundle --no-tags --force-sync common prebuilts/clang/host/linux-x86 prebuilts-master/clang/host/linux-x86 build prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 || true
+          # Sync all projects declared in the common-android12-5.10 manifest
+          # (kernel/common, kernel/build, prebuilts-master/clang, etc). The manifest
+          # is already scoped to what's needed for an aarch64 GKI build, and
+          # referencing project paths that don't exist in it (e.g. a plain
+          # "prebuilts/clang/host/linux-x86") makes repo abort the whole sync.
+          repo sync -c -j$(nproc) --no-clone-bundle --no-tags --force-sync
 
       - name: Checkout custom kernel branch (if specified)
         run: |
