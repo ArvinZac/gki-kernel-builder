@@ -1,0 +1,152 @@
+name: Build GKI Kernel 5.10 with KSU-Next and SuSFS
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_branch:
+        description: 'Android Common Kernel Manifest Branch'
+        required: true
+        default: 'common-android12-5.10'
+      kernel_repo:
+        description: 'Kernel Source Repo URL'
+        required: true
+        default: 'https://android.googlesource.com/kernel/common'
+      kernel_branch:
+        description: 'Kernel Source Repo Branch'
+        required: true
+        default: 'android12-5.10'
+      build_config:
+        description: 'Build Config Target'
+        required: true
+        default: 'common/build.config.gki.aarch64'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space
+        uses: insightsengineering/disk-space-reclaimer@v1
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+          tools-cache: true
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential curl flex git gnupg gperf libelf-dev libssl-dev libxml2-utils lz4 overlayfs-tools python3 rsync unzip zip zstd
+
+      - name: Install repo tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "PATH=$PATH:$HOME/bin" >> $GITHUB_ENV
+
+      - name: Initialize repo
+        run: |
+          repo init -u https://android.googlesource.com/kernel/manifest -b ${{ github.event.inputs.manifest_branch }} --depth=1
+
+      - name: Sync repo sources
+        run: |
+          # Sync only required projects to build aarch64
+          repo sync -c -j$(nproc) --no-clone-bundle --no-tags --force-sync common prebuilts/clang/host/linux-x86 prebuilts-master/clang/host/linux-x86 build prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 || true
+
+      - name: Checkout custom kernel branch (if specified)
+        run: |
+          if [ "${{ github.event.inputs.kernel_repo }}" != "https://android.googlesource.com/kernel/common" ] || [ "${{ github.event.inputs.kernel_branch }}" != "android12-5.10" ]; then
+            echo "[*] Using custom kernel repo: ${{ github.event.inputs.kernel_repo }} branch: ${{ github.event.inputs.kernel_branch }}"
+            rm -rf common
+            git clone --depth=1 -b ${{ github.event.inputs.kernel_branch }} ${{ github.event.inputs.kernel_repo }} common
+          fi
+
+      - name: Setup KernelSU-Next and SuSFS
+        run: |
+          cd common
+          echo "[+] 1. Installing KernelSU-Next..."
+          git clone https://github.com/KernelSU-Next/KernelSU-Next.git drivers/kernelsu
+
+          echo "[+] 2. Cloning SUSFS repository (branch gki-android12-5.10)..."
+          git clone -b gki-android12-5.10 https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
+
+          echo "[+] 3. Copying SUSFS files..."
+          cp -fv susfs_src/kernel_patches/fs/susfs.c fs/
+          cp -fv susfs_src/kernel_patches/fs/susfs_proc.c fs/ || echo "susfs_proc.c not found"
+          mkdir -p include/linux
+          cp -fv susfs_src/kernel_patches/include/linux/susfs.h include/linux/
+          cp -fv susfs_src/kernel_patches/include/linux/susfs_defconfig.h include/linux/ || echo "susfs_defconfig.h not found"
+
+          echo "[+] 4. Applying patches..."
+          KSU_PATCH="susfs_src/kernel_patches/10_enable_susfs_for_ksu.patch"
+          KERNEL_PATCH="susfs_src/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch"
+
+          if [ -f "$KSU_PATCH" ]; then
+              cd drivers/kernelsu
+              patch -p1 < ../../$KSU_PATCH || echo "Warning KSU patch failed, continuing..."
+              cd ../..
+          fi
+
+          if [ -f "$KERNEL_PATCH" ]; then
+              patch -p1 < "$KERNEL_PATCH" || echo "Warning Kernel patch failed, continuing..."
+          else
+              GENERIC_PATCH=$(find susfs_src/kernel_patches/ -name "*5.10*.patch" | head -n 1)
+              if [ -n "$GENERIC_PATCH" ]; then
+                  patch -p1 < "$GENERIC_PATCH" || echo "Warning Fallback patch failed, continuing..."
+              fi
+          fi
+
+          rm -rf susfs_src
+
+          echo "[+] 5. Adjusting configs in defconfig..."
+          DEFCONFIG="arch/arm64/configs/gki_defconfig"
+          if [ -f "$DEFCONFIG" ]; then
+              sed -i '/CONFIG_KSU/d' "$DEFCONFIG"
+              cat <<EOF >> "$DEFCONFIG"
+CONFIG_KSU=y
+CONFIG_KSU_SUSFS=y
+CONFIG_KSU_SUSFS_SUS_PATH=y
+CONFIG_KSU_SUSFS_SUS_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_KSTAT=y
+CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y
+EOF
+          fi
+
+      - name: Build GKI Kernel
+        run: |
+          export PATH=$PATH:$HOME/bin
+          BUILD_CONFIG=${{ github.event.inputs.build_config }} build/build.sh
+
+      - name: Package with AnyKernel3
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3.git anykernel
+          rm -rf anykernel/.git
+          
+          # Copy compiled kernel Image
+          cp out/*/dist/Image anykernel/
+          
+          # Copy built modules (*.ko) if they exist
+          mkdir -p anykernel/modules
+          find out/*/dist/ -name "*.ko" -exec cp -f {} anykernel/modules/ \;
+          
+          # Remove modular directory if no kernel modules were built
+          [ "$(ls -A anykernel/modules)" ] || rm -rf anykernel/modules
+          
+          # Configure anykernel.sh for generic GKI flashing
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel/anykernel.sh
+          sed -i 's/block=boot/block=auto/g' anykernel/anykernel.sh
+          
+          # Create flashable zip package
+          cd anykernel
+          zip -r ../AnyKernel3-GKI-5.10-KSU-Next-SuSFS.zip *
+          cd ..
+
+      - name: Upload AnyKernel3 Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnyKernel3-GKI-5.10-KSU-Next-SuSFS
+          path: AnyKernel3-GKI-5.10-KSU-Next-SuSFS.zip
