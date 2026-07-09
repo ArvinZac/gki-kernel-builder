@@ -105,15 +105,13 @@ jobs:
           DEFCONFIG="arch/arm64/configs/gki_defconfig"
           if [ -f "$DEFCONFIG" ]; then
               sed -i '/CONFIG_KSU/d' "$DEFCONFIG"
-              cat <<EOF >> "$DEFCONFIG"
-CONFIG_KSU=y
-CONFIG_KSU_SUSFS=y
-CONFIG_KSU_SUSFS_SUS_PATH=y
-CONFIG_KSU_SUSFS_SUS_MOUNT=y
-CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
-CONFIG_KSU_SUSFS_SUS_KSTAT=y
-CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y
-EOF
+              echo "CONFIG_KSU=y" >> "$DEFCONFIG"
+              echo "CONFIG_KSU_SUSFS=y" >> "$DEFCONFIG"
+              echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> "$DEFCONFIG"
+              echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> "$DEFCONFIG"
+              echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> "$DEFCONFIG"
+              echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> "$DEFCONFIG"
+              echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" >> "$DEFCONFIG"
           fi
 
       - name: Build GKI Kernel
