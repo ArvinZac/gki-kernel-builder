@@ -37,6 +37,7 @@ jobs:
 
       - name: Install Build Dependencies
         run: |
+          sudo sed -i 's/mirror.enzu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/* || true
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential curl flex git gnupg gperf libelf-dev libssl-dev libxml2-utils lz4 overlayfs-tools python3 rsync unzip zip zstd
 
