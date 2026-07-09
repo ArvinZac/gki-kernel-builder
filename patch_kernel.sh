@@ -64,30 +64,6 @@ cd ..
 
 rm -rf susfs_src
 
-echo "[+] 7. Updating defconfig..."
-DEFCONFIG="common/arch/arm64/configs/gki_defconfig"
-if [ -f "$DEFCONFIG" ]; then
-    echo "[*] Appending KernelSU and SuSFS configuration to $DEFCONFIG..."
-    sed -i '/CONFIG_KSU/d' "$DEFCONFIG"
-    cat <<EOF >> "$DEFCONFIG"
-
-# KernelSU and SUSFS
-CONFIG_KSU=y
-CONFIG_KSU_SUSFS=y
-CONFIG_KSU_SUSFS_SUS_PATH=y
-CONFIG_KSU_SUSFS_SUS_MOUNT=y
-CONFIG_KSU_SUSFS_SUS_KSTAT=y
-CONFIG_KSU_SUSFS_SPOOF_UNAME=y
-CONFIG_KSU_SUSFS_ENABLE_LOG=y
-CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
-CONFIG_KSU_SUSFS_SUS_MAP=y
-CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
-CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
-EOF
-    echo "[+] defconfig successfully updated."
-else
-    echo "[!] Warning: defconfig not found at $DEFCONFIG."
-    exit 1
-fi
-
 echo "[+] Patching completed successfully!"
+echo "[*] Note: CONFIG_KSU and all CONFIG_KSU_SUSFS_* options default to 'y' in Kconfig,"
+echo "[*]       so no defconfig modification is needed (check_defconfig will pass)."
