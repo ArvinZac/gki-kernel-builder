@@ -2,81 +2,56 @@
 set -e
 
 # patch_kernel.sh
-# Script to patch KernelSU-Next and SUSFS into Android 12 GKI 5.10 kernel source
+# Script to patch KernelSU-Next and SUSFS into Android 12 GKI 5.10 kernel source.
+# Must be run from the workspace root, i.e. the directory that directly
+# contains the "common" kernel source checkout (as produced by `repo sync`).
 
 echo "[+] Starting KernelSU-Next and SUSFS patching process..."
 
-# Determine the kernel common directory
-if [ -d "common" ]; then
-    echo "[*] Found 'common' directory. Navigating into it..."
-    cd common
-fi
-
-if [ ! -d "drivers" ] || [ ! -d "fs" ]; then
-    echo "[!] Error: Must be run inside the kernel source root directory or its parent directory."
+if [ ! -d "common/drivers" ] || [ ! -d "common/fs" ]; then
+    echo "[!] Error: 'common/drivers' and 'common/fs' not found. Run this script from the workspace root (the directory containing 'common/')."
     exit 1
 fi
 
-echo "[+] 1. Installing KernelSU-Next..."
-# Clean up existing KernelSU folder if any
-if [ -d "drivers/kernelsu" ]; then
-    echo "[*] Removing existing drivers/kernelsu..."
-    rm -rf drivers/kernelsu
-fi
-if [ -d "KernelSU" ]; then
-    echo "[*] Removing existing KernelSU..."
-    rm -rf KernelSU
-fi
-
-# Clone KernelSU-Next
-echo "[*] Cloning KernelSU-Next repository..."
-git clone https://github.com/KernelSU-Next/KernelSU-Next.git drivers/kernelsu
-
-# Verify drivers/kernelsu exists
-if [ ! -d "drivers/kernelsu" ]; then
-    echo "[!] Error: Failed to clone KernelSU-Next into drivers/kernelsu"
-    exit 1
-fi
+echo "[+] 1. Cloning KernelSU-Next..."
+rm -rf KernelSU-Next
+git clone https://github.com/KernelSU-Next/KernelSU-Next.git
 
 echo "[+] 2. Cloning SUSFS repository (branch gki-android12-5.10)..."
-if [ -d "susfs_src" ]; then
-    rm -rf susfs_src
-fi
+rm -rf susfs_src
 git clone -b gki-android12-5.10 https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
 
-if [ ! -d "susfs_src" ]; then
-    echo "[!] Error: Failed to clone susfs4ksu repository"
-    exit 1
-fi
-
-echo "[+] 3. Copying SUSFS files into kernel source..."
-# Copy susfs files to fs/ and include/
-cp -fv susfs_src/kernel_patches/fs/susfs.c fs/
-cp -fv susfs_src/kernel_patches/fs/susfs_proc.c fs/ || echo "[!] susfs_proc.c not found, skipping copy"
-mkdir -p include/linux
-cp -fv susfs_src/kernel_patches/include/linux/susfs.h include/linux/
-cp -fv susfs_src/kernel_patches/include/linux/susfs_def.h include/linux/ || echo "[!] susfs_def.h not found, skipping copy"
-
-echo "[+] 4. Applying SUSFS patches..."
+echo "[+] 3. Applying SUSFS patch to KernelSU-Next driver source..."
 KSU_PATCH="susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
-KERNEL_PATCH="susfs_src/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch"
-
 if [ -f "$KSU_PATCH" ]; then
-    echo "[*] Applying patch to drivers/kernelsu..."
-    cd drivers/kernelsu
-    # Try to apply the patch. If it fails, report it but don't crash
-    patch -p1 < ../../$KSU_PATCH || echo "[!] Warning: KSU SuSFS patch had some rejected hunks. You might need to merge manually."
-    cd ../..
+    cd KernelSU-Next
+    patch -p1 < "../$KSU_PATCH" || echo "[!] Warning: KSU SuSFS patch had some rejected hunks. You might need to merge manually."
+    cd ..
 else
     echo "[!] Warning: KSU SuSFS patch file not found at $KSU_PATCH"
 fi
 
+echo "[+] 4. Wiring KernelSU-Next into common/drivers (Kconfig + Makefile)..."
+cd common/drivers
+ln -sf ../../KernelSU-Next/kernel kernelsu
+grep -q 'kernelsu/' Makefile || printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> Makefile
+grep -q 'drivers/kernelsu/Kconfig' Kconfig || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' Kconfig
+cd ../..
+
+echo "[+] 5. Copying SUSFS core files into kernel source..."
+cp -fv susfs_src/kernel_patches/fs/susfs.c common/fs/
+cp -fv susfs_src/kernel_patches/fs/susfs_proc.c common/fs/ || echo "[!] susfs_proc.c not found, skipping copy"
+mkdir -p common/include/linux
+cp -fv susfs_src/kernel_patches/include/linux/susfs.h common/include/linux/
+cp -fv susfs_src/kernel_patches/include/linux/susfs_def.h common/include/linux/ || echo "[!] susfs_def.h not found, skipping copy"
+
+echo "[+] 6. Applying kernel-side SUSFS patch..."
+cd common
+KERNEL_PATCH="../susfs_src/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch"
 if [ -f "$KERNEL_PATCH" ]; then
-    echo "[*] Applying patch to kernel common..."
     patch -p1 < "$KERNEL_PATCH" || echo "[!] Warning: Kernel SuSFS patch had some rejected hunks. You might need to merge manually."
 else
-    # Find any fallback 5.10 patch
-    GENERIC_PATCH=$(find susfs_src/kernel_patches/ -name "*5.10*.patch" | head -n 1)
+    GENERIC_PATCH=$(find ../susfs_src/kernel_patches/ -maxdepth 1 -name "*5.10*.patch" | head -n 1)
     if [ -n "$GENERIC_PATCH" ]; then
         echo "[*] Found fallback patch: $GENERIC_PATCH. Applying..."
         patch -p1 < "$GENERIC_PATCH" || echo "[!] Warning: Fallback Kernel patch had some rejected hunks."
@@ -84,13 +59,12 @@ else
         echo "[!] Error: No kernel patch found for 5.10 in susfs4ksu"
     fi
 fi
+cd ..
 
-# Clean up susfs_src folder to keep tree clean
 rm -rf susfs_src
 
-echo "[+] 5. Updating defconfig..."
-# GKI kernel uses arch/arm64/configs/gki_defconfig
-DEFCONFIG="arch/arm64/configs/gki_defconfig"
+echo "[+] 7. Updating defconfig..."
+DEFCONFIG="common/arch/arm64/configs/gki_defconfig"
 if [ -f "$DEFCONFIG" ]; then
     echo "[*] Appending KernelSU-Next and SuSFS configuration to $DEFCONFIG..."
     # Ensure options are not duplicated if script is re-run

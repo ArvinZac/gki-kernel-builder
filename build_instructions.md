@@ -90,8 +90,9 @@ cd ~/gki-build
 # Inisialisasi repo dengan depth 1 (untuk menghemat penyimpanan)
 repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
 
-# Sinkronisasi source code (hanya sinkron direktori yang diperlukan untuk build)
-repo sync -c -j$(nproc) --no-clone-bundle --no-tags --force-sync common prebuilts/clang/host/linux-x86 prebuilts-master/clang/host/linux-x86 build prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+# Sinkronisasi source code (manifest common-android12-5.10 sudah otomatis
+# ter-scope hanya ke project yang diperlukan untuk build aarch64)
+repo sync -c -j$(nproc) --no-clone-bundle --no-tags --force-sync
 ```
 
 ### 3. Jalankan Script Patching
@@ -101,11 +102,12 @@ chmod +x patch_kernel.sh
 ./patch_kernel.sh
 ```
 Script ini akan otomatis:
-1. Mengunduh source code **KernelSU-Next** dan menaruhnya di `common/drivers/kernelsu`.
+1. Mengunduh source code **KernelSU-Next** ke `~/gki-build/KernelSU-Next`.
 2. Mengunduh source code **SuSFS** cabang `gki-android12-5.10`.
-3. Menyalin file modul SuSFS ke direktori kernel.
-4. Menerapkan patch SuSFS pada KernelSU-Next dan source kernel.
-5. Mengaktifkan konfigurasi KernelSU dan SuSFS di `arch/arm64/configs/gki_defconfig`.
+3. Menerapkan patch SuSFS ke source KernelSU-Next.
+4. Menyambungkan KernelSU-Next ke kernel lewat symlink `common/drivers/kernelsu` plus entri di `common/drivers/Kconfig` dan `common/drivers/Makefile` (tanpa ini, `CONFIG_KSU` tidak akan dikenali sama sekali oleh build system).
+5. Menyalin file modul SuSFS (`susfs.c`, `susfs.h`, `susfs_def.h`) ke direktori kernel dan menerapkan patch SuSFS pada source kernel.
+6. Mengaktifkan konfigurasi KernelSU dan SuSFS di `common/arch/arm64/configs/gki_defconfig`.
 
 ### 4. Proses Kompilasi Kernel
 Setelah selesai melakukan patching, jalankan perintah kompilasi berikut:

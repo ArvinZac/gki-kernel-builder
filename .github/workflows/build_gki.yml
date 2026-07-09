@@ -25,6 +25,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout this repo (for patch_kernel.sh)
+        uses: actions/checkout@v4
+        with:
+          path: _tool
+
       - name: Free Disk Space
         uses: insightsengineering/disk-space-reclaimer@v1
         with:
@@ -71,53 +76,8 @@ jobs:
 
       - name: Setup KernelSU-Next and SuSFS
         run: |
-          cd common
-          echo "[+] 1. Installing KernelSU-Next..."
-          git clone https://github.com/KernelSU-Next/KernelSU-Next.git drivers/kernelsu
-
-          echo "[+] 2. Cloning SUSFS repository (branch gki-android12-5.10)..."
-          git clone -b gki-android12-5.10 https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
-
-          echo "[+] 3. Copying SUSFS files..."
-          cp -fv susfs_src/kernel_patches/fs/susfs.c fs/
-          cp -fv susfs_src/kernel_patches/fs/susfs_proc.c fs/ || echo "susfs_proc.c not found"
-          mkdir -p include/linux
-          cp -fv susfs_src/kernel_patches/include/linux/susfs.h include/linux/
-          cp -fv susfs_src/kernel_patches/include/linux/susfs_def.h include/linux/ || echo "susfs_def.h not found"
-
-          echo "[+] 4. Applying patches..."
-          KSU_PATCH="susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
-          KERNEL_PATCH="susfs_src/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch"
-
-          if [ -f "$KSU_PATCH" ]; then
-              cd drivers/kernelsu
-              patch -p1 < ../../$KSU_PATCH || echo "Warning KSU patch failed, continuing..."
-              cd ../..
-          fi
-
-          if [ -f "$KERNEL_PATCH" ]; then
-              patch -p1 < "$KERNEL_PATCH" || echo "Warning Kernel patch failed, continuing..."
-          else
-              GENERIC_PATCH=$(find susfs_src/kernel_patches/ -name "*5.10*.patch" | head -n 1)
-              if [ -n "$GENERIC_PATCH" ]; then
-                  patch -p1 < "$GENERIC_PATCH" || echo "Warning Fallback patch failed, continuing..."
-              fi
-          fi
-
-          rm -rf susfs_src
-
-          echo "[+] 5. Adjusting configs in defconfig..."
-          DEFCONFIG="arch/arm64/configs/gki_defconfig"
-          if [ -f "$DEFCONFIG" ]; then
-              sed -i '/CONFIG_KSU/d' "$DEFCONFIG"
-              echo "CONFIG_KSU=y" >> "$DEFCONFIG"
-              echo "CONFIG_KSU_SUSFS=y" >> "$DEFCONFIG"
-              echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> "$DEFCONFIG"
-              echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> "$DEFCONFIG"
-              echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> "$DEFCONFIG"
-              echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> "$DEFCONFIG"
-              echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" >> "$DEFCONFIG"
-          fi
+          chmod +x _tool/patch_kernel.sh
+          ./_tool/patch_kernel.sh
 
       - name: Build GKI Kernel
         run: |
