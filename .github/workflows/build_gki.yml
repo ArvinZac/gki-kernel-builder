@@ -39,7 +39,7 @@ jobs:
         run: |
           sudo sed -i 's/mirror.enzu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/* || true
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential curl flex git gnupg gperf libelf-dev libssl-dev libxml2-utils lz4 overlayfs-tools python3 rsync unzip zip zstd
+          sudo apt-get install -y bc bison build-essential curl flex git gnupg gperf libelf-dev libssl-dev libxml2-utils lz4 python3 rsync unzip zip zstd
 
       - name: Install repo tool
         run: |
@@ -79,10 +79,10 @@ jobs:
           cp -fv susfs_src/kernel_patches/fs/susfs_proc.c fs/ || echo "susfs_proc.c not found"
           mkdir -p include/linux
           cp -fv susfs_src/kernel_patches/include/linux/susfs.h include/linux/
-          cp -fv susfs_src/kernel_patches/include/linux/susfs_defconfig.h include/linux/ || echo "susfs_defconfig.h not found"
+          cp -fv susfs_src/kernel_patches/include/linux/susfs_def.h include/linux/ || echo "susfs_def.h not found"
 
           echo "[+] 4. Applying patches..."
-          KSU_PATCH="susfs_src/kernel_patches/10_enable_susfs_for_ksu.patch"
+          KSU_PATCH="susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
           KERNEL_PATCH="susfs_src/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch"
 
           if [ -f "$KSU_PATCH" ]; then

@@ -53,7 +53,7 @@ Jika kamu ingin melakukan kompilasi di PC Windows kamu sendiri, gunakan **WSL2**
 Buka terminal WSL2 Ubuntu kamu, lalu jalankan perintah berikut untuk menginstal package yang dibutuhkan:
 ```bash
 sudo apt-get update
-sudo apt-get install -y bc bison build-essential curl flex git gnupg gperf libelf-dev libssl-dev libxml2-utils lz4 overlayfs-tools python3 rsync unzip zip zstd
+sudo apt-get install -y bc bison build-essential curl flex git gnupg gperf libelf-dev libssl-dev libxml2-utils lz4 python3 rsync unzip zip zstd
 ```
 
 Instal tool `repo` dari Google:

@@ -55,10 +55,10 @@ cp -fv susfs_src/kernel_patches/fs/susfs.c fs/
 cp -fv susfs_src/kernel_patches/fs/susfs_proc.c fs/ || echo "[!] susfs_proc.c not found, skipping copy"
 mkdir -p include/linux
 cp -fv susfs_src/kernel_patches/include/linux/susfs.h include/linux/
-cp -fv susfs_src/kernel_patches/include/linux/susfs_defconfig.h include/linux/ || echo "[!] susfs_defconfig.h not found, skipping copy"
+cp -fv susfs_src/kernel_patches/include/linux/susfs_def.h include/linux/ || echo "[!] susfs_def.h not found, skipping copy"
 
 echo "[+] 4. Applying SUSFS patches..."
-KSU_PATCH="susfs_src/kernel_patches/10_enable_susfs_for_ksu.patch"
+KSU_PATCH="susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
 KERNEL_PATCH="susfs_src/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch"
 
 if [ -f "$KSU_PATCH" ]; then
