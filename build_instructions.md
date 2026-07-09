@@ -49,6 +49,22 @@ Metode ini menggunakan workflow CI/CD GitHub untuk mempermudah proses kompilasi 
 
 Jika kamu ingin melakukan kompilasi di PC Windows kamu sendiri, gunakan **WSL2** dengan distro **Ubuntu** (direkomendasikan Ubuntu 22.04 LTS atau 24.04 LTS).
 
+### Opsi Cepat: Script All-in-One
+
+Kalau kamu tidak mau menjalankan langkah 1–5 satu-satu, gunakan `build_all_in_one.sh` yang menjalankan semuanya otomatis (install dependency → sync source → patch KSU-Next & SuSFS → compile → bikin zip AnyKernel3):
+```bash
+git clone https://github.com/ArvinZac/gki-kernel-builder.git
+cd gki-kernel-builder
+chmod +x build_all_in_one.sh
+./build_all_in_one.sh
+```
+Hasil zip flashable akan ada di `~/gki-build/AnyKernel3-GKI-5.10-KSU-Next-SuSFS.zip`. Butuh disk kosong ±150GB dan RAM 16GB+. Kalau mau pakai manifest/branch/config kernel lain, override lewat env var, contoh:
+```bash
+KERNEL_BRANCH=android12-5.10 BUILD_CONFIG=common/build.config.gki.aarch64 ./build_all_in_one.sh
+```
+
+Kalau ingin paham/kontrol tiap langkahnya secara manual, ikuti langkah 1–5 di bawah ini.
+
 ### 1. Persiapan Environment
 Buka terminal WSL2 Ubuntu kamu, lalu jalankan perintah berikut untuk menginstal package yang dibutuhkan:
 ```bash
